@@ -117,11 +117,54 @@ doc_header = parsy.seq(
     parsy.whitespace.tag(None)
 ).combine_dict(lambda **kwargs: kwargs)
 
+cve = parsy.seq(
+    parsy.string('cve: ').tag(None),
+    parsy.string('BORME-A-').tag(None),
+    decimal_digits.tag('year'),
+    parsy.string('-').tag(None),
+    decimal_digits.tag('month'),
+    parsy.string('-').tag(None),
+    decimal_digits.tag('day'),
+    parsy.whitespace.tag(None)
+).combine_dict(datetime.date)
+
+borme_url = parsy.string('http://www.boe.es')
+
+dl = parsy.seq(
+    parsy.string('D.L.: '),
+    parsy.any_char,
+    parsy.string('-'),
+    decimal_digits,
+    parsy.string('/'),
+    decimal_digits
+).combine(lambda *args: ''.join([str(x) for x in args]))
+
+issn = parsy.seq(
+    parsy.string('ISSN: '),
+    decimal_digits,
+    parsy.string('-'),
+    decimal_digits
+).combine(lambda *args: ''.join([str(x) for x in args]))
+
+doc_footer = parsy.seq(
+    cve.tag('cve'),
+    borme_url.tag(None),
+    parsy.whitespace.many().tag(None),
+    borme_string.tag(None),
+    parsy.whitespace.many().tag(None),
+    dl.tag('dl'),
+    parsy.string(' - ').tag(None),
+    issn.tag('issn')
+).combine_dict(lambda **kwargs: kwargs)
+
 act_title = parsy.alt(*map(parsy.string, act_titles(pdf_outline)))
 
 act_body = many_till(
     parsy.any_char,
-    act_title
+    parsy.alt(
+        act_title,
+        doc_footer
+    )
 ).combine(lambda *args: ''.join(args))
 
 act = parsy.seq(
@@ -132,8 +175,9 @@ act = parsy.seq(
 doc = parsy.seq(
     page_header,
     doc_header,
-    act.many()
+    act.many(),
+    doc_footer
 )
 
-o = doc.parse_partial(text)
+o = doc.parse(text)
 pprint(o)
