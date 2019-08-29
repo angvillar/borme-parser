@@ -1,8 +1,21 @@
 from pprint import pprint
 import re
 import datetime
+import PyPDF2
 import pdftotext
 import parsy
+
+pdf_path = './pdfs/BORME-A-2019-1-04.pdf'
+pdf_outline = []
+with open(pdf_path, 'rb') as f:
+    pdf = PyPDF2.PdfFileReader(f)
+    pdf_outline = pdf.getOutlines()
+
+
+def act_titles(pdf_outline):
+    _, *pdf_outline = pdf_outline
+    return [entry['/Title'] for entry in pdf_outline[0]]
+
 
 pdf = None
 with open("./pdfs/BORME-A-2019-1-04.pdf", "rb") as f:
@@ -32,6 +45,7 @@ def many_till(parser, parser_end):
                 return parsy.Result.success(index_start, [])
 
     return _many_till
+
 
 borme_string = parsy.string('BOLETÍN OFICIAL DEL REGISTRO MERCANTIL')
 
@@ -100,11 +114,25 @@ doc_header = parsy.seq(
     parsy.string('Actos inscritos').tag(None),
     parsy.whitespace.many().tag(None),
     province.tag('province'),
+    parsy.whitespace.tag(None)
 ).combine_dict(lambda **kwargs: kwargs)
+
+act_title = parsy.alt(*map(parsy.string, act_titles(pdf_outline)))
+
+act_body = many_till(
+    parsy.any_char,
+    act_title
+).combine(lambda *args: ''.join(args))
+
+act = parsy.seq(
+    act_title,
+    act_body
+)
 
 doc = parsy.seq(
     page_header,
     doc_header,
+    act.many()
 )
 
 o = doc.parse_partial(text)
