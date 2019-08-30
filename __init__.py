@@ -5,7 +5,7 @@ import PyPDF2
 import pdftotext
 import parsy
 
-pdf_path = './pdfs/BORME-A-2019-1-04.pdf'
+pdf_path = './pdfs/BORME-A-2019-146-23.pdf'
 pdf_outline = []
 with open(pdf_path, 'rb') as f:
     pdf = PyPDF2.PdfFileReader(f)
@@ -18,7 +18,7 @@ def act_titles(pdf_outline):
 
 
 pdf = None
-with open("./pdfs/BORME-A-2019-1-04.pdf", "rb") as f:
+with open(pdf_path, "rb") as f:
     pdf = pdftotext.PDF(f)
 
 text = "\n\n".join(pdf)
@@ -54,7 +54,8 @@ decimal_digits = parsy.decimal_digit.many().map(lambda digits: int(''.join(digit
 day_name = parsy.alt(
     parsy.string('Lunes'),
     parsy.string('Martes'),
-    parsy.string('Miércoles')
+    parsy.string('Miércoles'),
+    parsy.string('Jueves')
 ).map(lambda name: name.lower())
 
 months_numbers_by_name = {
@@ -74,9 +75,11 @@ months_numbers_by_name = {
 
 month_name = parsy.alt(
     parsy.string('enero'),
+    parsy.string('agosto'),
     parsy.string('septiembre'),
     parsy.string('octubre')
 ).map(lambda name: months_numbers_by_name[name])
+
 
 date = parsy.seq(
     day_name.tag(None),
@@ -90,7 +93,8 @@ date = parsy.seq(
 
 province = parsy.alt(
     parsy.string('ALMERÍA'),
-    parsy.string('MADRID')
+    parsy.string('MADRID'),
+    parsy.string('JAÉN')
 ).map(lambda name: name.lower())
 
 page_header = parsy.seq(
@@ -122,11 +126,11 @@ cve = parsy.seq(
     parsy.string('BORME-A-').tag(None),
     decimal_digits.tag('year'),
     parsy.string('-').tag(None),
-    decimal_digits.tag('month'),
+    decimal_digits.tag('number1'),
     parsy.string('-').tag(None),
-    decimal_digits.tag('day'),
+    decimal_digits.tag('number2'),
     parsy.whitespace.tag(None)
-).combine_dict(datetime.date)
+).combine_dict(lambda **kwargs: kwargs)
 
 borme_url = parsy.string('http://www.boe.es')
 
@@ -157,15 +161,35 @@ doc_footer = parsy.seq(
     issn.tag('issn')
 ).combine_dict(lambda **kwargs: kwargs)
 
-act_title = parsy.alt(*map(parsy.string, act_titles(pdf_outline)))
+act_title = parsy.seq(
+    parsy.alt(*map(parsy.string, act_titles(pdf_outline))),
+    parsy.whitespace
+).combine(lambda title, _: title)
 
-act_body = many_till(
-    parsy.any_char,
-    parsy.alt(
-        act_title,
-        doc_footer
-    )
-).combine(lambda *args: ''.join(args))
+keyword_name = parsy.alt(
+    parsy.string('Ceses/Dimisiones.'),
+    parsy.string('Nombramientos.'),
+    parsy.string('Datos registrales.'),
+    parsy.string('Declaración de unipersonalidad. Socio único:'),
+    parsy.string('Cambio de denominación social.'),
+    parsy.string('Pérdida del caracter de unipersonalidad.'),
+    parsy.string('Constitución.'),
+    parsy.string('Empresario Individual.')
+)
+
+keyword = parsy.seq(
+    keyword_name,
+    many_till(
+        parsy.any_char,
+        parsy.alt(
+            keyword_name,
+            act_title,
+            doc_footer
+        )
+    ).combine(lambda *args: ''.join(args))
+)
+
+act_body = keyword.many()
 
 act = parsy.seq(
     act_title,
