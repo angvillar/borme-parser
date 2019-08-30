@@ -80,7 +80,6 @@ month_name = parsy.alt(
     parsy.string('octubre')
 ).map(lambda name: months_numbers_by_name[name])
 
-
 date = parsy.seq(
     day_name.tag(None),
     parsy.whitespace.tag(None),
@@ -166,28 +165,171 @@ act_title = parsy.seq(
     parsy.whitespace
 ).combine(lambda title, _: title)
 
-keyword_name = parsy.alt(
-    parsy.string('Ceses/Dimisiones.'),
-    parsy.string('Nombramientos.'),
-    parsy.string('Datos registrales.'),
-    parsy.string('Declaración de unipersonalidad. Socio único:'),
-    parsy.string('Cambio de denominación social.'),
-    parsy.string('Pérdida del caracter de unipersonalidad.'),
-    parsy.string('Constitución.'),
-    parsy.string('Empresario Individual.')
-)
 
-keyword = parsy.seq(
-    keyword_name,
-    many_till(
-        parsy.any_char,
-        parsy.alt(
-            keyword_name,
-            act_title,
-            doc_footer
+@parsy.generate
+def position():
+    return (yield parsy.alt(
+        parsy.seq(
+            parsy.string('Adm. Unico:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    position,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Adm. Solid.:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    position,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
         )
-    ).combine(lambda *args: ''.join(args))
-)
+    ))
+
+
+@parsy.generate
+def constitution():
+    return (yield parsy.alt(
+        parsy.seq(
+            parsy.string('Comienzo de operaciones:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    constitution,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Objeto social:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    constitution,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Domicilio:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    constitution,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Capital:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    constitution,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+    ))
+
+
+@parsy.generate
+def keyword():
+    return (yield parsy.alt(
+        parsy.seq(
+            parsy.string('Ceses/Dimisiones.'),
+            parsy.whitespace,
+            position.many()
+        ),
+        parsy.seq(
+            parsy.string('Nombramientos.'),
+            parsy.whitespace,
+            position.many()
+        ),
+        parsy.seq(
+            parsy.string('Datos registrales.'),
+            parsy.whitespace,
+            parsy.seq(
+                parsy.seq(
+                    parsy.string('T'),
+                    many_till(
+                        parsy.any_char,
+                        parsy.string('F')
+                    ).combine(lambda *args: ''.join(args))
+                ),
+                parsy.seq(
+                    parsy.string('F'),
+                    many_till(
+                        parsy.any_char,
+                        parsy.string('S')
+                    ).combine(lambda *args: ''.join(args))
+                ),
+                parsy.seq(
+                    parsy.string('S'),
+                    many_till(
+                        parsy.any_char,
+                        parsy.string('H')
+                    ).combine(lambda *args: ''.join(args))
+                ),
+                parsy.seq(
+                    parsy.string('H'),
+                    many_till(
+                        parsy.any_char,
+                        parsy.string('I/A')
+                    ).combine(lambda *args: ''.join(args))
+                ),
+                parsy.seq(
+                    parsy.string('I/A'),
+                    many_till(
+                        parsy.any_char,
+                        parsy.alt(
+                            act_title,
+                            doc_footer
+                        )
+                    ).combine(lambda *args: ''.join(args))
+                ),
+            )
+        ),
+        parsy.seq(
+            parsy.string('Declaración de unipersonalidad. Socio único:'),
+            parsy.whitespace,
+            many_till(
+                parsy.any_char,
+                keyword
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Cambio de denominación social.'),
+            parsy.whitespace,
+            many_till(
+                parsy.any_char,
+                keyword
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Pérdida del caracter de unipersonalidad.'),
+            parsy.whitespace
+        ),
+        parsy.seq(
+            parsy.string('Constitución.'),
+            parsy.whitespace,
+            constitution.many()
+        ),
+        parsy.seq(
+            parsy.string('Empresario Individual.'),
+            parsy.whitespace,
+            many_till(
+                parsy.any_char,
+                keyword
+            ).combine(lambda *args: ''.join(args))
+        ),
+    ))
+
 
 act_body = keyword.many()
 
