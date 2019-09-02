@@ -5,7 +5,7 @@ import PyPDF2
 import pdftotext
 import parsy
 
-pdf_path = './pdfs/BORME-A-2019-146-23.pdf'
+pdf_path = './pdfs/BORME-A-2019-1-04.pdf'
 pdf_outline = []
 with open(pdf_path, 'rb') as f:
     pdf = PyPDF2.PdfFileReader(f)
@@ -188,7 +188,37 @@ def position():
                     keyword
                 )
             ).combine(lambda *args: ''.join(args))
-        )
+        ),
+        parsy.seq(
+            parsy.string('Liquidador:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    position,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Liquidador M:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    position,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Adm. Mancom.:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    position,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
     ))
 
 
@@ -239,8 +269,35 @@ def constitution():
 
 
 @parsy.generate
+def ampliacion_de_capital():
+    return (yield parsy.alt(
+        parsy.seq(
+            parsy.string('Capital:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    ampliacion_de_capital,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        ),
+        parsy.seq(
+            parsy.string('Resultante Suscrito:'),
+            many_till(
+                parsy.any_char,
+                parsy.alt(
+                    ampliacion_de_capital,
+                    keyword
+                )
+            ).combine(lambda *args: ''.join(args))
+        )
+    ))
+
+
+@parsy.generate
 def keyword():
     return (yield parsy.alt(
+        # keyword with unordered subfields
         parsy.seq(
             parsy.string('Ceses/Dimisiones.'),
             parsy.whitespace,
@@ -251,6 +308,7 @@ def keyword():
             parsy.whitespace,
             position.many()
         ),
+        # keyword with ordered subfields
         parsy.seq(
             parsy.string('Datos registrales.'),
             parsy.whitespace,
@@ -295,6 +353,7 @@ def keyword():
                 ),
             )
         ),
+        # keyword with body
         parsy.seq(
             parsy.string('Declaración de unipersonalidad. Socio único:'),
             parsy.whitespace,
@@ -311,6 +370,7 @@ def keyword():
                 keyword
             ).combine(lambda *args: ''.join(args))
         ),
+        # keyword with no body
         parsy.seq(
             parsy.string('Pérdida del caracter de unipersonalidad.'),
             parsy.whitespace
@@ -328,6 +388,35 @@ def keyword():
                 keyword
             ).combine(lambda *args: ''.join(args))
         ),
+        parsy.seq(
+            parsy.string('Ampliación de capital.'),
+            parsy.whitespace,
+            ampliacion_de_capital.many()
+        ),
+        parsy.seq(
+            parsy.string('Disolución.'),
+            parsy.whitespace,
+            parsy.alt(
+                parsy.string('Fusion.'),
+                parsy.string('Voluntaria.')
+            ),
+            parsy.whitespace
+        ),
+        parsy.seq(
+            parsy.string('Extinción.'),
+            parsy.whitespace
+        ),
+        parsy.seq(
+            parsy.string('Fusión por unión.'),
+            parsy.whitespace,
+            parsy.seq(
+                parsy.string('Sociedades que se fusiónan:'),
+                many_till(
+                    parsy.any_char,
+                    keyword
+                ).combine(lambda *args: ''.join(args))
+            )
+        ),
     ))
 
 
@@ -344,6 +433,7 @@ doc = parsy.seq(
     act.many(),
     doc_footer
 )
+
 
 o = doc.parse(text)
 pprint(o)
