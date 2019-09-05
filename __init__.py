@@ -4,8 +4,9 @@ import datetime
 import PyPDF2
 import pdftotext
 import parsy
+import enum
 
-pdf_path = './pdfs/BORME-A-2019-146-23.pdf'
+pdf_path = './pdfs/BORME-A-2019-1-04.pdf'
 pdf_outline = []
 with open(pdf_path, 'rb') as f:
     pdf = PyPDF2.PdfFileReader(f)
@@ -166,32 +167,12 @@ act_title = parsy.seq(
 ).combine(lambda title, _: title)
 
 
-def keyword_name(name):
+def field_option(name, body):
     @parsy.generate
-    def _keyword_name():
-        name_parsed = yield parsy.string(name)
-        yield parsy.whitespace
-        return name_parsed
+    def _field_option():
+        return (yield name), (yield body)
 
-    return _keyword_name
-
-
-def keyword_compound(name, body_parser):
-    @parsy.generate
-    def _keyword_compound():
-        name_parsed = yield keyword_name(name)
-        body_parsed = yield body_parser
-        return {name_parsed: body_parsed}
-
-    return _keyword_compound
-
-
-@parsy.generate
-def any_till_keyword():
-    return (yield many_till(
-        parsy.any_char,
-        keyword
-    ).combine(lambda *args: ''.join(args)))
+    return _field_option
 
 
 def any_till(parser):
@@ -205,108 +186,131 @@ def any_till(parser):
     return _any_till
 
 
-@parsy.generate
-def position():
-    position_or_keyword = parsy.alt(position, keyword)
-    return (yield parsy.alt(
-        keyword_compound('Adm. Unico:', any_till(position_or_keyword)),
-        keyword_compound('Adm. Solid.:', any_till(position_or_keyword)),
-        keyword_compound('Liquidador:', any_till(position_or_keyword)),
-        keyword_compound('Liquidador M:', any_till(position_or_keyword)),
-        keyword_compound('Adm. Mancom.:', any_till(position_or_keyword)),
-    ))
+lexeme = lambda p: p << parsy.whitespace
 
 
-@parsy.generate
-def constitution():
-    constitution_or_keyword = parsy.alt(constitution, keyword)
-    return (yield parsy.alt(
-        keyword_compound('Comienzo de operaciones:', any_till(constitution_or_keyword)),
-        keyword_compound('Objeto social:', any_till(constitution_or_keyword)),
-        keyword_compound('Domicilio:', any_till(constitution_or_keyword)),
-        keyword_compound('Capital:', any_till(constitution_or_keyword)),
-    ))
+class Keyword(enum.Enum):
+    CESES_DIMISIONES = 'Ceses/Dimisiones.'
+    NOMBRAMIENTOS = 'Nombramientos.'
+    DATOS_REGISTRALES = 'Datos registrales.'
+    DECLARACION_DE_UNIPERSONALIDAD = 'Declaración de unipersonalidad.'
+    SOCIO_UNICO = 'Socio único:'
+    CAMBIO_DE_DENOMINACION_SOCIAL = 'Cambio de denominación social.'
+    PERDIDA_DEL_CARACTER_DE_UNIPERSONALIDAD = 'Pérdida del caracter de unipersonalidad.'
+    CONSTITUCION = 'Constitución.'
+    EMPRESARIO_INDIVIDUAL = 'Empresario Individual.'
+    AMPLIACION_DE_CAPITAL = 'Ampliación de capital.'
+    DISOLUCION = 'Disolución.'
+    EXTINCION = 'Extinción.'
+    FUSION_POR_UNION = 'Fusión por unión.'
 
 
-@parsy.generate
-def ampliacion_de_capital():
-    ampliacion_de_capital_or_keyword = parsy.alt(ampliacion_de_capital, keyword)
-    return (yield parsy.alt(
-        keyword_compound('Capital:', any_till(ampliacion_de_capital_or_keyword)),
-        keyword_compound('Resultante Suscrito:', any_till(ampliacion_de_capital_or_keyword)),
-    ))
+class Cargo(enum.Enum):
+    ADM_UNICO = 'Adm. Unico:'
+    ADM_SOLID = 'Adm. Solid.:'
+    LIQUIDADOR = 'Liquidador:'
+    LIQUIDADOR_M = 'Liquidador M:'
+    ADM_MANCOM = 'Adm. Mancom.:'
 
 
-@parsy.generate
-def keyword():
-    return (yield parsy.alt(
-        # keyword with unordered subfields
-        keyword_compound('Ceses/Dimisiones.', position.many()),
-        keyword_compound('Nombramientos.', position.many()),
-        # keyword with ordered subfields
+keyword = parsy.from_enum(Keyword)
+keyword_cargo = parsy.from_enum(Cargo)
 
-        keyword_compound('Datos registrales.', parsy.seq(
-            parsy.seq(
-                parsy.string('T'),
-                many_till(
-                    parsy.any_char,
-                    parsy.string('F')
-                ).combine(lambda *args: ''.join(args))
-            ),
-            parsy.seq(
-                parsy.string('F'),
-                many_till(
-                    parsy.any_char,
-                    parsy.string('S')
-                ).combine(lambda *args: ''.join(args))
-            ),
-            parsy.seq(
-                parsy.string('S'),
-                many_till(
-                    parsy.any_char,
-                    parsy.string('H')
-                ).combine(lambda *args: ''.join(args))
-            ),
-            parsy.seq(
-                parsy.string('H'),
-                many_till(
-                    parsy.any_char,
-                    parsy.string('I/A')
-                ).combine(lambda *args: ''.join(args))
-            ),
-            parsy.seq(
-                parsy.string('I/A'),
-                many_till(
-                    parsy.any_char,
-                    parsy.alt(
-                        act_title,
-                        doc_footer
-                    )
-                ).combine(lambda *args: ''.join(args))),
-        )),
-        # keyword with body
-        keyword_compound('Declaración de unipersonalidad. Socio único:', any_till_keyword),
-        keyword_compound('Cambio de denominación social.', any_till_keyword),
-        keyword_compound('Pérdida del caracter de unipersonalidad.', parsy.index.map(lambda _: '')),
-        keyword_compound('Constitución.', constitution.many()),
-        keyword_compound('Empresario Individual.', any_till_keyword),
-        keyword_compound('Ampliación de capital.', ampliacion_de_capital.many()),
-        # keyword with body options
-        keyword_compound('Disolución.', parsy.seq(
-            parsy.alt(
-                parsy.string('Fusion.'),
-                parsy.string('Voluntaria.')
-            ),
-            parsy.whitespace)),
-        keyword_compound('Extinción.', parsy.index.map(lambda _: '')),
-        keyword_compound('Fusión por unión.', parsy.seq(
-            parsy.string('Sociedades que se fusiónan:'),
-            any_till_keyword
-        )),
-    ))
+cargo = parsy.alt(
+    field_option(
+        lexeme(parsy.string(Cargo.ADM_UNICO.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.ADM_SOLID.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.LIQUIDADOR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.LIQUIDADOR_M.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.ADM_MANCOM.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+)
 
+field = parsy.alt(
+    # ceses_dimisiones
+    field_option(
+        lexeme(parsy.string(Keyword.CESES_DIMISIONES.value)),
+        cargo.many()
+    ),
+    # nombramientos
+    field_option(
+        lexeme(parsy.string(Keyword.NOMBRAMIENTOS.value)),
+        cargo.many()
+    ),
+    # datos registrales
+    field_option(
+        lexeme(parsy.string(Keyword.DATOS_REGISTRALES.value)),
+        any_till(act_title | doc_footer)
+    ),
+    # declaracion de unipersonalidad socio unico
+    field_option(
+        lexeme(parsy.string(Keyword.DECLARACION_DE_UNIPERSONALIDAD.value)),
+        parsy.index
+    ),
+    # socio unico
+    field_option(
+        lexeme(parsy.string(Keyword.SOCIO_UNICO.value)),
+        any_till(keyword)
+    ),
+    # cambio de denominacion social
+    field_option(
+        lexeme(parsy.string(Keyword.CAMBIO_DE_DENOMINACION_SOCIAL.value)),
+        any_till(keyword)
+    ),
+    # perdida del caracter de unipersonalidad
+    field_option(
+        lexeme(parsy.string(Keyword.PERDIDA_DEL_CARACTER_DE_UNIPERSONALIDAD.value)),
+        parsy.index
+    ),
+    # constitucion
+    field_option(
+        lexeme(parsy.string(Keyword.CONSTITUCION.value)),
+        any_till(keyword)
+    ),
+    # empresario individual
+    field_option(
+        lexeme(parsy.string(Keyword.EMPRESARIO_INDIVIDUAL.value)),
+        any_till(keyword)
+    ),
+    # ampliacion de capital
+    field_option(
+        lexeme(parsy.string(Keyword.AMPLIACION_DE_CAPITAL.value)),
+        any_till(keyword)
+    ),
+    # disolucion
+    field_option(
+        lexeme(parsy.string(Keyword.DISOLUCION.value)),
+        parsy.alt(
+            lexeme(parsy.string('Fusion.')),
+            lexeme(parsy.string('Voluntaria.'))
+        )
+    ),
+    # extincion
+    field_option(
+        lexeme(parsy.string(Keyword.EXTINCION.value)),
+        parsy.index
+    ),
+    # fusion por union
+    field_option(
+        lexeme(parsy.string(Keyword.FUSION_POR_UNION.value)),
+        any_till(keyword)
+    ),
+)
 
-act_body = keyword.many()
+act_body = field.many()
 
 act = parsy.seq(
     act_title,
@@ -320,5 +324,5 @@ doc = parsy.seq(
     doc_footer
 )
 
-o = doc.parse(text)
+o = doc.parse_partial(text)
 pprint(o)
