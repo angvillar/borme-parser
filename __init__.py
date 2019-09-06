@@ -6,7 +6,7 @@ import pdftotext
 import parsy
 import enum
 
-pdf_path = './pdfs/BORME-A-2019-1-04.pdf'
+pdf_path = './pdfs/BORME-A-2019-170-28.pdf'
 pdf_outline = []
 with open(pdf_path, 'rb') as f:
     pdf = PyPDF2.PdfFileReader(f)
@@ -163,8 +163,10 @@ doc_footer = parsy.seq(
 
 act_title = parsy.seq(
     parsy.alt(*map(parsy.string, act_titles(pdf_outline))),
-    parsy.whitespace
-).combine(lambda title, _: title)
+    parsy.whitespace,
+    # cve can appear right after title
+    cve.optional()
+).combine(lambda title, *_: title)
 
 
 def field_option(name, body):
@@ -203,6 +205,55 @@ class Keyword(enum.Enum):
     DISOLUCION = 'Disolución.'
     EXTINCION = 'Extinción.'
     FUSION_POR_UNION = 'Fusión por unión.'
+    REVOCACIONES = 'Revocaciones.'
+    MODIFICACIONES_ESTATUTARIAS = 'Modificaciones estatutarias.'
+    CAMBIO_DE_OBJETO_SOCIAL = 'Cambio de objeto social.'
+    CAMBIO_DE_DOMICILIO_SOCIAL = 'Cambio de domicilio social.'
+    AMPLIACION_DEL_OBJETO_SOCIAL = 'Ampliacion del objeto social.'
+    REELECCIONES = 'Reelecciones.'
+    APERTURA_DE_SUCURSAL = 'Apertura de sucursal.'
+    ARTICULO_378_5_DEL_REGLAMENTO_DEL_REGISTRO_MERCANTIL = 'Articulo 378.5 del Reglamento del Registro Mercantil.'
+    OTROS_CONCEPTOS = 'Otros conceptos:'
+    AMPLIACION_DEL_CAPITAL = 'Ampliación de capital.'
+    REDUCCION_DE_CAPITAL = 'Reducción de capital.'
+    SITUACION_CONCURSAL = 'Situación concursal.'
+    FUSION_POR_ABSORCION = 'Fusión por absorción.'
+    SUSPENSION_DE_PAGOS = 'Suspensión de pagos.'
+    TRANSFORMACION_DE_SOCIEDAD = 'Transformación de sociedad.'
+    CANCELACIONES_DE_OFICIO_DE_NOMBRAMIENTOS = 'Cancelaciones de oficio de nombramientos.'
+    DESEMBOLSO_DE_DIVIDENDOS_PASIVOS = 'Desembolso de dividendos pasivos.'
+    PAGINA_WEB_DE_LA_SOCIEDAD = 'Página web de la sociedad.'
+    PRIMERA_SUCURSAL_DE_SOCIEDAD_EXTRANJERA = 'Primera sucursal de sociedad extranjera.'
+    EMISION_DE_OBLIGACIONES = 'Emisión de obligaciones.'
+    MODIFICACION_DE_PODERES = 'Modificación de poderes.'
+    ESCISION_PARCIAL = 'Escisión parcial.'
+    QUIEBRA = 'Quiebra.'
+    SUCURSAL = 'Sucursal.'
+    CESION_GLOBAL_DE_ACTIVO_Y_PASIVO = 'Cesión global de activo y pasivo.'
+    SEGREGACION = 'Segregación.'
+    PRIMERA_INSCRIPCION_OM_10_6_1997 = 'Primera inscripcion (O.M. 10/6/1.997).'
+    ANOTACION_PREVENTIVA_DEMANDA_DE_IMPUGNACION_DE_ACUERDOS_SOCIALES = 'Anotación preventiva. Demanda de impugnación de acuerdos sociales.'
+    ANOTACION_PREVENTIVA_DECLARACION_DE_DEUDOR_FALLIDO = 'Anotación preventiva. Declaración de deudor fallido.'
+    CREDITO_INCOBRABLE = 'Crédito incobrable.'
+    SOCIEDAD_UNIPERSONAL = 'Sociedad unipersonal.'
+    REAPERTURA_DE_HOJA_REGISTRAL = 'Reapertura hoja registral.'
+    ADAPTACION_DE_LEY_2_95 = 'Adaptación Ley 2/95.'
+    ADAPTACION_DE_LEY_44_2015 = 'Adaptación Ley 44/2015.'
+    ADAPTACION_SEGUN_DT_2_APARTADO_2_LEY_2_95 = 'Adaptada segun D.T. 2 apartado 2 Ley 2/95.'
+    CIERRE_PROVISIONAL_HOJA_REGISTRAL_POR_BAJA_EN_EL_INDICE_DE_ENTIDADES_JURIDICAS = 'Cierre provisional hoja registral por baja en el índice de Entidades Jurídicas.'
+    CIERRE_PROVISIONAL_DE_LA_HOJA_REGISTRAL_POR_REVOCACION_DEL_NIF = 'Cierre provisional de la hoja registral por revocación del NIF.'
+    CIERRE_PROVISIONAL_HOJA_REGISTRAL_POR_REVOCACION_DEL_NIF_DE_ENTIDADES_JURIDICAS = 'Cierre provisional hoja registral por revocación del NIFde Entidades Jurídicas.'
+    CIERRE_PROVISIONAL_HOJA_REGISTRAL_POR_ART_137_2_LEY_43_1995_IMPUESTO_DE_SOCIEDADES = 'Cierre provisional hoja registral art. 137.2 Ley 43/1995 Impuesto de Sociedades.'
+    REACTIVACION_DE_LA_SOCIEDAD_ART_242_DEL_REGLAMENTO_DEL_REGISTRO_MERCANTIL = 'Reactivación de la sociedad (Art. 242 del Reglamento del Registro Mercantil).'
+    ADAPTACION_DE_SOCIEDAD = 'Adaptación de sociedad.'
+    CIERRE_DE_SUCURSAL = 'Cierre de Sucursal.'
+    MODIFICACION_DE_DURACION = 'Modificación de duración:'
+    FE_DE_ERRATAS = 'Fe de erratas:'
+    ACUERDO_DE_AMPLIACION_DE_CAPITAL_SOCIAL_SIN_EJECUTAR_IMPORTE_DEL_ACUERDO = 'Acuerdo de ampliación de capital social sin ejecutar. Importe del acuerdo.'
+    ESCISION_TOTAL = 'Escisión total.'
+
+    # not sure if this is a keyword, see: Jueves 5 de septiembre de 2019 MADRID, entry: 381477 - LUNA BARRIOS Y BONADEA SL.
+    DEPOSITO_DE_LIBROS = 'Depósito de libros.'
 
 
 class Cargo(enum.Enum):
@@ -211,12 +262,60 @@ class Cargo(enum.Enum):
     LIQUIDADOR = 'Liquidador:'
     LIQUIDADOR_M = 'Liquidador M:'
     ADM_MANCOM = 'Adm. Mancom.:'
+    APODERADO = 'Apoderado:'
+    APO_MANC = 'Apo.Manc.:'
+    APO_MAN_SOLI = 'Apo.Man.Soli:'
+    APO_SOL = 'Apo.Sol.:'
+    CONSEJERO = 'Consejero:'
+    SOCIO_MIEMBR = 'Socio Miembr:'
+    AUDITOR = 'Auditor:'
+    AUDITOR_SUPLENTE = 'Aud.Supl.:'
+    VSECRNOCONSJ = 'VsecrNoConsj:'
+    CO_DE_MA_SO = 'Co.De.Ma.So:'
+    ENT_GESTORA = 'Ent. Gestora:'
+    PRESIDENTE = 'Presidente:'
+    SECRETARIO = 'Secretario:'
+    VICESECRET = 'Vicesecret.:'
+    SECRENOCONSJ = 'SecreNoConsj:'
+    SOC_PROF = 'Soc.Prof.:'
+    REPRESENTAN = 'Representan:'
+    CON_DELEGADO = 'Con.Delegado:'
+    CON_IND = 'Con.Ind.:'
+    CONS_EXT_DOM = 'Cons.Ext.Dom:'
+    VICEPRESID = 'Vicepresid.:'
+    CONS_EXTERNO = 'Cons.Externo:'
+    CONSJ_DOMINI = 'Consj.Domini:'
+    CONS_DEL_SOL = 'Cons.Del.Sol:'
 
 
 keyword = parsy.from_enum(Keyword)
 keyword_cargo = parsy.from_enum(Cargo)
 
 cargo = parsy.alt(
+    field_option(
+        lexeme(parsy.string(Cargo.CONS_DEL_SOL.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CON_IND.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CONS_EXT_DOM.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.VICEPRESID.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CONS_EXTERNO.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CONSJ_DOMINI.value)),
+        any_till(keyword_cargo | keyword)
+    ),
     field_option(
         lexeme(parsy.string(Cargo.ADM_UNICO.value)),
         any_till(keyword_cargo | keyword)
@@ -235,6 +334,78 @@ cargo = parsy.alt(
     ),
     field_option(
         lexeme(parsy.string(Cargo.ADM_MANCOM.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.APODERADO.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.APO_MANC.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.APO_MAN_SOLI.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.APO_SOL.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CONSEJERO.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.SOCIO_MIEMBR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.AUDITOR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.AUDITOR_SUPLENTE.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.VSECRNOCONSJ.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CO_DE_MA_SO.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.ENT_GESTORA.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.PRESIDENTE.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.SECRETARIO.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.VICESECRET.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.SECRENOCONSJ.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.SOC_PROF.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.REPRESENTAN.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.CON_DELEGADO.value)),
         any_till(keyword_cargo | keyword)
     ),
 )
@@ -308,6 +479,67 @@ field = parsy.alt(
         lexeme(parsy.string(Keyword.FUSION_POR_UNION.value)),
         any_till(keyword)
     ),
+    # modificaciones estatutarias
+    field_option(
+        lexeme(parsy.string(Keyword.MODIFICACIONES_ESTATUTARIAS.value)),
+        any_till(keyword)
+    ),
+    # fe de erratas
+    field_option(
+        lexeme(parsy.string(Keyword.FE_DE_ERRATAS.value)),
+        any_till(keyword)
+    ),
+    # reelecciones
+    field_option(
+        lexeme(parsy.string(Keyword.REELECCIONES.value)),
+        any_till(keyword)
+    ),
+    # revocaciones
+    field_option(
+        lexeme(parsy.string(Keyword.REVOCACIONES.value)),
+        any_till(keyword)
+    ),
+    # sociedad unipersonal
+    field_option(
+        lexeme(parsy.string(Keyword.SOCIEDAD_UNIPERSONAL.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.CAMBIO_DE_DOMICILIO_SOCIAL.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.CANCELACIONES_DE_OFICIO_DE_NOMBRAMIENTOS.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.DEPOSITO_DE_LIBROS.value)),
+        parsy.index
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.DESEMBOLSO_DE_DIVIDENDOS_PASIVOS.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.AMPLIACION_DEL_OBJETO_SOCIAL.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.REDUCCION_DE_CAPITAL.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.CAMBIO_DE_OBJETO_SOCIAL.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.OTROS_CONCEPTOS.value)),
+        any_till(keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Keyword.FUSION_POR_ABSORCION.value)),
+        any_till(keyword)
+    ),
 )
 
 act_body = field.many()
@@ -324,5 +556,15 @@ doc = parsy.seq(
     doc_footer
 )
 
-o = doc.parse_partial(text)
-pprint(o)
+try:
+    o = doc.parse(text)
+    pprint(o)
+except parsy.ParseError as e:
+    message = str(e)
+    m = re.search(r'[\d]\:[\d]+', message)
+    if m:
+        indexes = m.group(0)
+        end = int(indexes.split(':')[1])
+        pprint(text[end:])
+except Exception as e:
+    raise e
