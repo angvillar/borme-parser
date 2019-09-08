@@ -6,6 +6,11 @@ import pdftotext
 import parsy
 import enum
 
+"""
+TODO:
+    remove cve and page headers from all pages
+"""
+
 pdf_path = './pdfs/BORME-A-2019-170-28.pdf'
 pdf_outline = []
 with open(pdf_path, 'rb') as f:
@@ -22,7 +27,12 @@ pdf = None
 with open(pdf_path, "rb") as f:
     pdf = pdftotext.PDF(f)
 
+re_cve = r'cve:[\s]+BORME-A-\d{4}-\d+-\d{2}'
+re_page_header = r'BOLETÍN[\s]+OFICIAL[\s]+DEL[\s]+REGISTRO[\s]+MERCANTIL[\s]+Núm.[\s]+\d+[\s]+(Miércoles|Jueves)[\s]+\d{1,2}[\s]+de[\s]+(enero|septiembre)[\s]+de[\s]+\d{4}[\s]+Pág\.[\s]+\d+'
+
 text = "\n\n".join(pdf)
+text = re.sub(re_cve, '', text)
+text = re.sub(re_page_header, '', text)
 text = re.sub('\s+', ' ', text).strip()
 
 
@@ -50,7 +60,13 @@ def many_till(parser, parser_end):
 
 borme_string = parsy.string('BOLETÍN OFICIAL DEL REGISTRO MERCANTIL')
 
-decimal_digits = parsy.decimal_digit.many().map(lambda digits: int(''.join(digits)))
+
+def combine_decimal_digits(*args):
+    if args:
+        return int(''.join(args))
+
+
+decimal_digits = parsy.decimal_digit.many().combine(combine_decimal_digits)
 
 day_name = parsy.alt(
     parsy.string('Lunes'),
@@ -107,6 +123,7 @@ page_header = parsy.seq(
     parsy.whitespace.many().tag(None),
     parsy.string('Pág. ').tag(None),
     decimal_digits.tag(None),
+    parsy.whitespace.many().tag(None)
 ).combine_dict(lambda **kwargs: kwargs)
 
 doc_header = parsy.seq(
@@ -151,7 +168,7 @@ issn = parsy.seq(
 ).combine(lambda *args: ''.join([str(x) for x in args]))
 
 doc_footer = parsy.seq(
-    cve.tag('cve'),
+    # cve.tag('cve'),
     borme_url.tag(None),
     parsy.whitespace.many().tag(None),
     borme_string.tag(None),
@@ -164,8 +181,6 @@ doc_footer = parsy.seq(
 act_title = parsy.seq(
     parsy.alt(*map(parsy.string, act_titles(pdf_outline))),
     parsy.whitespace,
-    # cve can appear right after title
-    cve.optional()
 ).combine(lambda title, *_: title)
 
 
@@ -188,6 +203,10 @@ def any_till(parser):
     return _any_till
 
 
+DOT = parsy.string('.')
+COMMA = parsy.string(',')
+LEFT_PAREN = parsy.string('(')
+RIGHT_PAREN = parsy.string(')')
 lexeme = lambda p: p << parsy.whitespace
 
 
@@ -424,8 +443,53 @@ field = parsy.alt(
     # datos registrales
     field_option(
         lexeme(parsy.string(Keyword.DATOS_REGISTRALES.value)),
-        any_till(act_title | doc_footer)
+        parsy.seq(
+            field_option(
+                lexeme(parsy.string('T')),
+                lexeme(decimal_digits).skip(lexeme(COMMA))
+            ),
+            field_option(
+                lexeme(parsy.string('F')),
+                decimal_digits.skip(lexeme(COMMA))
+            ),
+            field_option(
+                lexeme(parsy.string('S')),
+                decimal_digits.skip(lexeme(COMMA))
+            ),
+            field_option(
+                lexeme(parsy.string('H')),
+                # two letters maximun?
+                # letters are always capital
+                parsy.seq(
+                    lexeme(parsy.letter.many().combine(lambda *args: ''.join(args))),
+                    decimal_digits.skip(lexeme(COMMA))
+                )
+            ),
+            field_option(
+                lexeme(parsy.string('I/A')),
+                parsy.seq(
+                    lexeme(parsy.seq(
+                        decimal_digits,
+                        parsy.letter.optional()
+                    )),
+                    parsy.seq(
+                        LEFT_PAREN.tag(None),
+                        # for an example of this see:
+                        # Jueves 5 de septiembre de 2019 Madrid, 381420 - XIBOPAR SL.
+                        parsy.whitespace.optional().tag(None),
+                        decimal_digits.tag('day'),
+                        DOT.tag(None),
+                        decimal_digits.tag('month'),
+                        DOT.tag(None),
+                        decimal_digits.tag('year'),
+                        RIGHT_PAREN.tag(None),
+                        lexeme(DOT).tag(None)
+                    ).combine_dict(datetime.date)
+                )
+            ),
+        ).skip(any_till(act_title | doc_footer)).optional(),
     ),
+
     # declaracion de unipersonalidad socio unico
     field_option(
         lexeme(parsy.string(Keyword.DECLARACION_DE_UNIPERSONALIDAD.value)),
@@ -540,6 +604,10 @@ field = parsy.alt(
         lexeme(parsy.string(Keyword.FUSION_POR_ABSORCION.value)),
         any_till(keyword)
     ),
+    field_option(
+        lexeme(parsy.string(Keyword.PAGINA_WEB_DE_LA_SOCIEDAD.value)),
+        any_till(keyword)
+    ),
 )
 
 act_body = field.many()
@@ -550,7 +618,7 @@ act = parsy.seq(
 )
 
 doc = parsy.seq(
-    page_header,
+    # page_header,
     doc_header,
     act.many(),
     doc_footer
@@ -565,6 +633,7 @@ except parsy.ParseError as e:
     if m:
         indexes = m.group(0)
         end = int(indexes.split(':')[1])
-        pprint(text[end:])
+        pprint(text[end - 50:])
+        raise e
 except Exception as e:
     raise e
