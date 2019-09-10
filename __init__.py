@@ -5,13 +5,9 @@ import PyPDF2
 import pdftotext
 import parsy
 import enum
+import attr
 
-"""
-TODO:
-    remove cve and page headers from all pages
-"""
-
-pdf_path = './pdfs/BORME-A-2019-170-28.pdf'
+pdf_path = './pdfs/BORME-A-2019-146-23.pdf'
 pdf_outline = []
 with open(pdf_path, 'rb') as f:
     pdf = PyPDF2.PdfFileReader(f)
@@ -28,12 +24,34 @@ with open(pdf_path, "rb") as f:
     pdf = pdftotext.PDF(f)
 
 re_cve = r'cve:[\s]+BORME-A-\d{4}-\d+-\d{2}'
-re_page_header = r'BOLETÍN[\s]+OFICIAL[\s]+DEL[\s]+REGISTRO[\s]+MERCANTIL[\s]+Núm.[\s]+\d+[\s]+(Miércoles|Jueves)[\s]+\d{1,2}[\s]+de[\s]+(enero|septiembre)[\s]+de[\s]+\d{4}[\s]+Pág\.[\s]+\d+'
+re_page_header = r'BOLETÍN[\s]+OFICIAL[\s]+DEL[\s]+REGISTRO[\s]+MERCANTIL[\s]+Núm.[\s]+\d+[\s]+(Lunes|Miércoles|Jueves)[\s]+\d{1,2}[\s]+de[\s]+(enero|agosto|septiembre)[\s]+de[\s]+\d{4}[\s]+Pág\.[\s]+\d+'
 
 text = "\n\n".join(pdf)
 text = re.sub(re_cve, '', text)
 text = re.sub(re_page_header, '', text)
 text = re.sub('\s+', ' ', text).strip()
+
+
+@attr.s
+class ActList:
+    acts = attr.ib()
+
+
+@attr.s
+class Act:
+    title = attr.ib()
+    fields = attr.ib()
+
+
+@attr.s
+class FieldList:
+    fields = attr.ib()
+
+
+@attr.s
+class Field:
+    name = attr.ib()
+    content = attr.ib()
 
 
 def many_till(parser, parser_end):
@@ -187,7 +205,7 @@ act_title = parsy.seq(
 def field_option(name, body):
     @parsy.generate
     def _field_option():
-        return (yield name), (yield body)
+        return Field((yield name), (yield body))
 
     return _field_option
 
@@ -305,6 +323,16 @@ class Cargo(enum.Enum):
     CONS_EXTERNO = 'Cons.Externo:'
     CONSJ_DOMINI = 'Consj.Domini:'
     CONS_DEL_SOL = 'Cons.Del.Sol:'
+    MIEM_COM_CTR = 'Miem.Com.Ctr:'
+    PRES_COM_CTR = 'Pres.Com.Ctr:'
+    VPR_COM_CTR = 'Vpr.Com.Ctr:'
+    SECR_COM_CTR = 'Secr.Com.Ctr:'
+    VICES_COM_CT = 'Vices.Com.Ct:'
+    LIQUISOLI = 'LiquiSoli:'
+    # not sure if are cargos
+    # see: 385129 - ELCANO HIGH YIELD OPPORTUNITIES, SIL SA., Lunes 9 de septiembre de 2019 Madrid
+    ENTIDDEPOSIT = 'EntidDeposit:'
+    ENT_REG_CONT = 'Ent.Reg.Cont:'
 
 
 keyword = parsy.from_enum(Keyword)
@@ -427,18 +455,52 @@ cargo = parsy.alt(
         lexeme(parsy.string(Cargo.CON_DELEGADO.value)),
         any_till(keyword_cargo | keyword)
     ),
+    field_option(
+        lexeme(parsy.string(Cargo.MIEM_COM_CTR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.PRES_COM_CTR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.VPR_COM_CTR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.SECR_COM_CTR.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.VICES_COM_CT.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.LIQUISOLI.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.ENTIDDEPOSIT.value)),
+        any_till(keyword_cargo | keyword)
+    ),
+    field_option(
+        lexeme(parsy.string(Cargo.ENT_REG_CONT.value)),
+        any_till(keyword_cargo | keyword)
+    ),
 )
+
+cargos = cargo.many().map(FieldList)
 
 field = parsy.alt(
     # ceses_dimisiones
     field_option(
         lexeme(parsy.string(Keyword.CESES_DIMISIONES.value)),
-        cargo.many()
+        cargos
     ),
     # nombramientos
     field_option(
         lexeme(parsy.string(Keyword.NOMBRAMIENTOS.value)),
-        cargo.many()
+        cargos
     ),
     # datos registrales
     field_option(
@@ -487,7 +549,7 @@ field = parsy.alt(
                     ).combine_dict(datetime.date)
                 )
             ),
-        ).skip(any_till(act_title | doc_footer)).optional(),
+        ).skip(any_till(act_title | doc_footer)).optional().map(FieldList),
     ),
 
     # declaracion de unipersonalidad socio unico
@@ -613,27 +675,29 @@ field = parsy.alt(
 act_body = field.many()
 
 act = parsy.seq(
-    act_title,
-    act_body
-)
+    act_title.tag('title'),
+    act_body.tag('fields')
+).combine_dict(Act)
+
+acts = act.many().map(ActList)
 
 doc = parsy.seq(
     # page_header,
     doc_header,
-    act.many(),
+    acts,
     doc_footer
 )
 
 try:
     o = doc.parse(text)
-    pprint(o)
+    pprint(attr.asdict(o[1]))
 except parsy.ParseError as e:
     message = str(e)
     m = re.search(r'[\d]\:[\d]+', message)
     if m:
         indexes = m.group(0)
         end = int(indexes.split(':')[1])
-        pprint(text[end - 50:])
+        pprint(text[end:])
         raise e
 except Exception as e:
     raise e
